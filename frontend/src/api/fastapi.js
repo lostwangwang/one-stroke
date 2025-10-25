@@ -1,0 +1,5 @@
+import axios from "axios";
+const api = axios.create({ baseURL: "http://localhost:8000" });
+export const fetchDemo = () => api.get("/generate").then((r) => r.data);
+export const solveGraph = (graph) =>
+  api.post("/solve", graph).then((r) => r.data);
