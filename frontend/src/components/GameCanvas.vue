@@ -66,74 +66,223 @@ function layoutNodesCircle(ids) {
     return { id, x, y };
   });
 }
+const PATH_COLORS = [
+    "#E91E63", // 1. 粉红 (深)
+    "#00BCD4", // 2. 青色
+    "#FF9800", // 3. 橙色
+    "#4CAF50", // 4. 绿色
+    "#673AB7", // 5. 深紫
+    "#FFEB3B", // 6. 黄色 (需谨慎，在浅色背景上可能看不清)
+    "#03A9F4", // 7. 浅蓝
+    "#795548", // 8. 棕色
+    "#607D8B", // 9. 蓝灰
+    "#F44336", // 10. 红色
+    "#009688", // 11. 蓝绿
+    "#9C27B0", // 12. 紫色
+    "#CDDC39", // 13. 浅绿
+    "#FF5722", // 14. 深橙
+    "#8BC34A", // 15. 橄榄绿
+    "#00796B", // 16. 深青
+    "#AFB42B", // 17. 泥黄
+    "#7B1FA2", // 18. 靛紫
+    "#C2185B", // 19. 玫瑰红
+    "#00579C", // 20. 深蓝
+];
+const UNVISITED_COLOR = "#cbd5e1";
+const NODE_STROKE_COLOR = "#333";
+const NODE_FILL_COLOR = "#fff";
+// function draw() {
+//   if (!ctx) return;
+//   ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
 
+//   ctx.lineWidth = 6;
+//   edges.forEach(([a, b]) => {
+//     const na = nodes.find((n) => n.id === a);
+//     const nb = nodes.find((n) => n.id === b);
+//     const key = edgeKey(a, b);
+//     if (!na || !nb) return;
+//     ctx.beginPath();
+//     ctx.moveTo(na.x, na.y);
+//     ctx.lineTo(nb.x, nb.y);
+//     ctx.strokeStyle = visitedEdges.find(v => v.key === key) ? "#0b84ff" : "#cbd5e1";
+//     ctx.stroke();
+//   });
+
+//   nodes.forEach((n) => {
+//     ctx.beginPath();
+//     ctx.arc(n.x, n.y, 18, 0, Math.PI * 2);
+//     ctx.fillStyle = "#fff";
+//     ctx.fill();
+//     ctx.strokeStyle = "#333";
+//     ctx.lineWidth = 2;
+//     ctx.stroke();
+//   });
+
+//   visitedEdges.forEach((visited, index) => {
+//     const seqNum = index + 1;
+//     const { key, from, to } = visited;
+//     const na = nodes.find((n) => n.id === from);
+//     const nb = nodes.find((n) => n.id === to);
+//     if (!na || !nb) return;
+//     const midX = (na.x + nb.x) / 2;
+//     const midY = (na.y + nb.y) / 2;
+//     const offsetDistance = 15;
+//     let vecX = nb.x - na.x;
+//     let vecY = nb.y - na.y;
+//     const len = Math.hypot(vecX, vecY);
+//     let normX = 0; let normY = 0;
+//     if (len > 0) { normX = -vecY / len; normY = vecX / len; }
+//     const numX = midX + normX * offsetDistance;
+//     const numY = midY + normY * offsetDistance;
+
+//     ctx.fillStyle = "#0b84ff";
+//     ctx.font = "bold 15px Arial";
+//     ctx.textAlign = "center";
+//     ctx.textBaseline = "middle";
+//     ctx.fillText(seqNum.toString(), numX, numY);
+
+//     const nodeRadius = 18;
+//     const arrowLength = 12;
+//     const arrowAngle = Math.PI / 6;
+//     const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
+//     const endX = nb.x - nodeRadius * Math.cos(angle);
+//     const endY = nb.y - nodeRadius * Math.sin(angle);
+//     ctx.beginPath();
+//     ctx.moveTo(endX, endY);
+//     ctx.lineTo( endX - arrowLength * Math.cos(angle - arrowAngle), endY - arrowLength * Math.sin(angle - arrowAngle));
+//     ctx.moveTo(endX, endY);
+//     ctx.lineTo( endX - arrowLength * Math.cos(angle + arrowAngle), endY - arrowLength * Math.sin(angle + arrowAngle));
+//     ctx.strokeStyle = "#0b84ff";
+//     ctx.lineWidth = 3;
+//     ctx.stroke();
+//   });
+// }
 function draw() {
-  if (!ctx) return;
-  ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
 
-  ctx.lineWidth = 6;
-  edges.forEach(([a, b]) => {
-    const na = nodes.find((n) => n.id === a);
-    const nb = nodes.find((n) => n.id === b);
-    const key = edgeKey(a, b);
-    if (!na || !nb) return;
-    ctx.beginPath();
-    ctx.moveTo(na.x, na.y);
-    ctx.lineTo(nb.x, nb.y);
-    ctx.strokeStyle = visitedEdges.find(v => v.key === key) ? "#0b84ff" : "#cbd5e1";
-    ctx.stroke();
-  });
+    // --- 辅助代码 (确保边线不画到圆心，并定义半径) ---
+    const nodeRadius = 18; 
 
-  nodes.forEach((n) => {
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, 18, 0, Math.PI * 2);
-    ctx.fillStyle = "#fff";
-    ctx.fill();
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
+    const getPointOnCircumference = (na, nb, radius) => {
+        const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
+        const x = na.x + radius * Math.cos(angle);
+        const y = na.y + radius * Math.sin(angle);
+        return { x, y };
+    };
+    // ----------------------------------------------------
 
-  visitedEdges.forEach((visited, index) => {
-    const seqNum = index + 1;
-    const { key, from, to } = visited;
-    const na = nodes.find((n) => n.id === from);
-    const nb = nodes.find((n) => n.id === to);
-    if (!na || !nb) return;
-    const midX = (na.x + nb.x) / 2;
-    const midY = (na.y + nb.y) / 2;
-    const offsetDistance = 15;
-    let vecX = nb.x - na.x;
-    let vecY = nb.y - na.y;
-    const len = Math.hypot(vecX, vecY);
-    let normX = 0; let normY = 0;
-    if (len > 0) { normX = -vecY / len; normY = vecX / len; }
-    const numX = midX + normX * offsetDistance;
-    const numY = midY + normY * offsetDistance;
+    ctx.lineWidth = 6;
+    edges.forEach(([a, b]) => {
+        const na = nodes.find((n) => n.id === a);
+        const nb = nodes.find((n) => n.id === b);
+        const key = edgeKey(a, b);
+        if (!na || !nb) return;
 
-    ctx.fillStyle = "#0b84ff";
-    ctx.font = "bold 15px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(seqNum.toString(), numX, numY);
+        // 边线不画到圆心 (保持之前修改的正确逻辑)
+        const startPoint = getPointOnCircumference(na, nb, nodeRadius);
+        const endPoint = getPointOnCircumference(nb, na, nodeRadius);
 
-    const nodeRadius = 18;
-    const arrowLength = 12;
-    const arrowAngle = Math.PI / 6;
-    const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
-    const endX = nb.x - nodeRadius * Math.cos(angle);
-    const endY = nb.y - nodeRadius * Math.sin(angle);
-    ctx.beginPath();
-    ctx.moveTo(endX, endY);
-    ctx.lineTo( endX - arrowLength * Math.cos(angle - arrowAngle), endY - arrowLength * Math.sin(angle - arrowAngle));
-    ctx.moveTo(endX, endY);
-    ctx.lineTo( endX - arrowLength * Math.cos(angle + arrowAngle), endY - arrowLength * Math.sin(angle + arrowAngle));
-    ctx.strokeStyle = "#0b84ff";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  });
+        ctx.beginPath();
+        ctx.moveTo(startPoint.x, startPoint.y);
+        ctx.lineTo(endPoint.x, endPoint.y);
+        
+        // 原版颜色逻辑：检查边是否被访问，如果是，使用蓝色，否则使用灰色
+        ctx.strokeStyle = visitedEdges.find(v => v.key === key) ? "#0b84ff" : "#cbd5e1";
+        ctx.stroke();
+    });
+
+    nodes.forEach((n) => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, nodeRadius, 0, Math.PI * 2); // 使用 nodeRadius
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    });
+
+    visitedEdges.forEach((visited, index) => {
+        const seqNum = index + 1;
+        const { from, to } = visited;
+        const na = nodes.find((n) => n.id === from);
+        const nb = nodes.find((n) => n.id === to);
+        if (!na || !nb) return;
+
+        // --- 恢复核心逻辑：获取独特的颜色（解决 ReferenceError） ---
+        const pathColor = PATH_COLORS[index % PATH_COLORS.length];
+        // -----------------------------------------------------------
+        
+        // 重新绘制已访问的边，以确保颜色覆盖（并使用不画入圆心的点）
+        const startPoint = getPointOnCircumference(na, nb, nodeRadius);
+        const endPoint = getPointOnCircumference(nb, na, nodeRadius);
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(startPoint.x, startPoint.y);
+        ctx.lineTo(endPoint.x, endPoint.y);
+        ctx.strokeStyle = pathColor; // 使用独特的颜色
+        ctx.stroke();
+
+        // ------------------------------------------------------
+        // --- 核心改动：计算序号位置，使其靠近箭头 (只改动这里) ---
+        // ------------------------------------------------------
+        const offsetDistance = 15; // 垂直偏移量
+        const backOffset = 30;     // 沿着边的反方向回退的距离
+
+        let vecX = nb.x - na.x; // 向量 from A to B
+        let vecY = nb.y - na.y;
+        const len = Math.hypot(vecX, vecY);
+        let normX = 0; 
+        let normY = 0; 
+        
+        if (len > 0) { 
+            // 归一化法线向量 (用于垂直偏移)
+            normX = -vecY / len; 
+            normY = vecX / len; 
+            
+            // 归一化方向向量 (用于沿着边回退)
+            vecX /= len;
+            vecY /= len;
+        }
+        
+        // 1. 找到箭头终点（在 nb 节点的圆周上）
+        const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
+        const arrowX = nb.x - nodeRadius * Math.cos(angle);
+        const arrowY = nb.y - nodeRadius * Math.sin(angle);
+        
+        // 2. 从箭头终点向后退 backOffset 的距离
+        const backX = arrowX - vecX * backOffset;
+        const backY = arrowY - vecY * backOffset;
+        
+        // 3. 在回退后的点上，进行垂直于边线的偏移
+        const numX = backX + normX * offsetDistance;
+        const numY = backY + normY * offsetDistance;
+        // ------------------------------------------------------
+        
+        ctx.fillStyle = pathColor; // 序号文本使用独特的颜色
+        ctx.font = "bold 15px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(seqNum.toString(), numX, numY);
+
+        // --- 恢复箭头绘制逻辑（使用 pathColor） ---
+        const arrowLength = 12;
+        const arrowAngle = Math.PI / 6;
+        // angle 变量已在上面计算
+        const endX = nb.x - nodeRadius * Math.cos(angle); // 箭头终点
+        const endY = nb.y - nodeRadius * Math.sin(angle);
+        
+        ctx.beginPath();
+        ctx.moveTo(endX, endY);
+        ctx.lineTo( endX - arrowLength * Math.cos(angle - arrowAngle), endY - arrowLength * Math.sin(angle - arrowAngle));
+        ctx.moveTo(endX, endY);
+        ctx.lineTo( endX - arrowLength * Math.cos(angle + arrowAngle), endY - arrowLength * Math.sin(angle + arrowAngle));
+        ctx.strokeStyle = pathColor; // 箭头使用独特的颜色
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        // ------------------------------------------
+    });
 }
-
 function reset() {
   visitedEdges.length = 0;
   currentNode = null;
@@ -346,6 +495,7 @@ function nextLevel() {
   loadCurrentLevel();
 }
 function onChangeDifficulty() {
+  console.log("难度更改为:", difficulty.value);
   levelIndex.value = 1;
   loadCurrentLevel();
 }
