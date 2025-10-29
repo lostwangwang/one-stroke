@@ -1,27 +1,43 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List, Tuple, Optional, Set, Dict
+from typing import List, Tuple, Optional
 from fastapi.middleware.cors import CORSMiddleware
+
 # --- Use find_euler_path for the /solve endpoint ---
 from algorithms.euler import find_euler_path
-# import random # No longer needed
+
+# 新增导入
+from algorithms.euler import find_next_step
 from collections import defaultdict
 from generate_graph import generate_eulerian_graph_data
 
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
+
 
 # --- Use simple GraphInput for /solve ---
 class GraphInput(BaseModel):
     nodes: List[int]
     edges: List[Tuple[int, int]]
 
-@app.get('/generate')
+
+# 新增：提示请求体
+class HintInput(BaseModel):
+    nodes: List[int]
+    edges: List[Tuple[int, int]]
+    visitedEdges: List[str]  # 形如 ["1-2","2-3"]
+    pathEndpoint: Optional[int] = None  # 当前端点，或空
+
+
+@app.get("/generate")
 def generate_demo():
     # Keep the simple triangle demo (Circuit)
     nodes = [1, 2, 3]
     edges = [(1, 2), (2, 3), (3, 1)]
     return {"nodes": nodes, "edges": edges}
+
 
 # --- V V V --- Strictly Verified Fixed Levels (10 per difficulty, solvable, no parallel edges) --- V V V ---
 # LEVELS = {
@@ -94,7 +110,8 @@ def generate_demo():
 # }
 # --- ^ ^ ^ --- Verified Fixed Levels End --- ^ ^ ^ ---
 
-@app.get('/level')
+
+@app.get("/level")
 def get_level(difficulty: str = "easy", index: int = 1):
     # diff = difficulty.lower()
     # if diff not in LEVELS: diff = "easy"
@@ -113,7 +130,8 @@ def get_level(difficulty: str = "easy", index: int = 1):
         graph = generate_eulerian_graph_data(num_nodes=7, edge_prob=1, type="path")
     return graph
 
-@app.post('/solve')
+
+@app.post("/solve")
 def solve_graph(graph: GraphInput):
     # Use find_euler_path to get the full path
     path = find_euler_path(graph.nodes, graph.edges)
@@ -122,15 +140,31 @@ def solve_graph(graph: GraphInput):
         # Verify if the graph data itself is flawed (should not happen with fixed levels)
         d = defaultdict(int)
         valid_nodes_in_edges = set()
-        for u,v in graph.edges:
-             if u in graph.nodes and v in graph.nodes:
-                  d[u]+=1
-                  d[v]+=1
-                  valid_nodes_in_edges.add(u)
-                  valid_nodes_in_edges.add(v)
-        odd_nodes = [n for n in graph.nodes if n in valid_nodes_in_edges and d[n]%2==1]
-        print(f"CRITICAL: find_euler_path failed on fixed level! Odd nodes: {len(odd_nodes)}")
+        for u, v in graph.edges:
+            if u in graph.nodes and v in graph.nodes:
+                d[u] += 1
+                d[v] += 1
+                valid_nodes_in_edges.add(u)
+                valid_nodes_in_edges.add(v)
+        odd_nodes = [
+            n for n in graph.nodes if n in valid_nodes_in_edges and d[n] % 2 == 1
+        ]
+        print(
+            f"CRITICAL: find_euler_path failed on fixed level! Odd nodes: {len(odd_nodes)}"
+        )
         return {"ok": False, "error": f"关卡设计错误 (奇数点: {len(odd_nodes)})"}
 
     # Return the full path
     return {"ok": True, "path": path}
+
+
+@app.post("/hint")
+def hint_next_step(payload: HintInput):
+    move, err = find_next_step(
+        payload.nodes, payload.edges, payload.visitedEdges, payload.pathEndpoint
+    )
+    if err:
+        return {"ok": False, "message": err}
+    if not move:
+        return {"ok": False, "message": "无法给出下一步"}
+    return {"ok": True, "move": move}  # [from, to]
