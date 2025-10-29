@@ -17,9 +17,12 @@
       <span style="display:flex; align-items:center">关卡 {{ levelIndex }}</span>
       <button @click="prevLevel">上一关</button>
       <button @click="nextLevel">下一关</button>
-      <button @click="askSolve">提示（显示答案）</button>
-      <button @click="reset">重置</button>
-      <button @click="loadDemo">加载示例</button>
+      <div style="display:flex; gap:8px; align-items:center; white-space:nowrap;">
+        <button @click="undoStep">后退</button>
+        <button @click="askSolve">提示</button>
+        <button @click="reset">重新游戏</button>
+      </div>
+      <!-- <button @click="loadDemo">加载示例</button> -->
     </div>
 
     <div v-if="message" style="padding:8px; text-align:center; color:#0b7a00; font-weight:600;">
@@ -91,72 +94,7 @@ const PATH_COLORS = [
 const UNVISITED_COLOR = "#cbd5e1";
 const NODE_STROKE_COLOR = "#333";
 const NODE_FILL_COLOR = "#fff";
-// function draw() {
-//   if (!ctx) return;
-//   ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
 
-//   ctx.lineWidth = 6;
-//   edges.forEach(([a, b]) => {
-//     const na = nodes.find((n) => n.id === a);
-//     const nb = nodes.find((n) => n.id === b);
-//     const key = edgeKey(a, b);
-//     if (!na || !nb) return;
-//     ctx.beginPath();
-//     ctx.moveTo(na.x, na.y);
-//     ctx.lineTo(nb.x, nb.y);
-//     ctx.strokeStyle = visitedEdges.find(v => v.key === key) ? "#0b84ff" : "#cbd5e1";
-//     ctx.stroke();
-//   });
-
-//   nodes.forEach((n) => {
-//     ctx.beginPath();
-//     ctx.arc(n.x, n.y, 18, 0, Math.PI * 2);
-//     ctx.fillStyle = "#fff";
-//     ctx.fill();
-//     ctx.strokeStyle = "#333";
-//     ctx.lineWidth = 2;
-//     ctx.stroke();
-//   });
-
-//   visitedEdges.forEach((visited, index) => {
-//     const seqNum = index + 1;
-//     const { key, from, to } = visited;
-//     const na = nodes.find((n) => n.id === from);
-//     const nb = nodes.find((n) => n.id === to);
-//     if (!na || !nb) return;
-//     const midX = (na.x + nb.x) / 2;
-//     const midY = (na.y + nb.y) / 2;
-//     const offsetDistance = 15;
-//     let vecX = nb.x - na.x;
-//     let vecY = nb.y - na.y;
-//     const len = Math.hypot(vecX, vecY);
-//     let normX = 0; let normY = 0;
-//     if (len > 0) { normX = -vecY / len; normY = vecX / len; }
-//     const numX = midX + normX * offsetDistance;
-//     const numY = midY + normY * offsetDistance;
-
-//     ctx.fillStyle = "#0b84ff";
-//     ctx.font = "bold 15px Arial";
-//     ctx.textAlign = "center";
-//     ctx.textBaseline = "middle";
-//     ctx.fillText(seqNum.toString(), numX, numY);
-
-//     const nodeRadius = 18;
-//     const arrowLength = 12;
-//     const arrowAngle = Math.PI / 6;
-//     const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
-//     const endX = nb.x - nodeRadius * Math.cos(angle);
-//     const endY = nb.y - nodeRadius * Math.sin(angle);
-//     ctx.beginPath();
-//     ctx.moveTo(endX, endY);
-//     ctx.lineTo( endX - arrowLength * Math.cos(angle - arrowAngle), endY - arrowLength * Math.sin(angle - arrowAngle));
-//     ctx.moveTo(endX, endY);
-//     ctx.lineTo( endX - arrowLength * Math.cos(angle + arrowAngle), endY - arrowLength * Math.sin(angle + arrowAngle));
-//     ctx.strokeStyle = "#0b84ff";
-//     ctx.lineWidth = 3;
-//     ctx.stroke();
-//   });
-// }
 function draw() {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
@@ -493,6 +431,29 @@ function prevLevel() {
 function nextLevel() {
   levelIndex.value += 1;
   loadCurrentLevel();
+}
+// Undo the last drawn step (pop last visited edge)
+function undoStep() {
+  // Nothing to undo
+  if (visitedEdges.length === 0) return;
+
+  // Remove the last visited edge
+  visitedEdges.pop();
+
+  // Update endpoint/current node according to remaining path
+  if (visitedEdges.length === 0) {
+    pathEndpoint = null;
+    currentNode = null;
+  } else {
+    const last = visitedEdges[visitedEdges.length - 1];
+    // The last visited edge's 'to' is the current endpoint
+    pathEndpoint = last.to;
+    currentNode = null;
+  }
+
+  hintInvalidated = true;
+  message.value = "";
+  draw();
 }
 function onChangeDifficulty() {
   console.log("难度更改为:", difficulty.value);
