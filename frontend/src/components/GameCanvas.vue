@@ -18,6 +18,7 @@
       <button @click="prevLevel">上一关</button>
       <button @click="nextLevel">下一关</button>
       <button @click="askSolve">提示（显示答案）</button>
+      <button @click="askHint">智能提示（下一步）</button>
       <button @click="reset">重置</button>
       <button @click="loadDemo">加载示例</button>
     </div>
@@ -31,6 +32,8 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { fetchDemo, fetchLevel, solveGraph } from "../api/fastapi";
+// 新增导入
+import { hintNext } from "../api/fastapi";
 
 const canvas = ref(null);
 let ctx = null;
