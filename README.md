@@ -31,6 +31,8 @@ one-stroke/
 ```
 
 ---
+https://catechistic-unproficiently-billy.ngrok-fre
+
 
 ## 快速开始（在本地运行）
 
@@ -71,6 +73,12 @@ npm run dev
 
 下面是各文件的最小实现，你可以直接复制到对应位置并运行。
 
+可以加的功能：
+1. 后退，如果连错了，后退一步
+2. 限制3次使用提示
+3. AI提示
+4. 点击提示的话是否可以
+5. 连到当前点变颜色
 ---
 
 ### backend/requirements.txt

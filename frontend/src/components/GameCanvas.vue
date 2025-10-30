@@ -1,11 +1,6 @@
 <template>
-  <div style="flex: 1; display: flex; flex-direction: column">
-    <canvas
-      ref="canvas"
-      style="flex: 1; background: #f6f8fa; touch-action: none"
-    ></canvas>
-
-    <div style="padding: 8px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; border-top: 1px solid #e5e7eb;">
+  <div class="root" style="flex: 1; display: flex; flex-direction: column">
+    <div class="toolbar">
       <label style="display:flex; align-items:center; gap:6px">
         难度
         <select v-model="difficulty" @change="onChangeDifficulty" style="padding:6px; border-radius:6px; border:1px solid #cbd5e1">
@@ -17,24 +12,35 @@
       <span style="display:flex; align-items:center">关卡 {{ levelIndex }}</span>
       <button @click="prevLevel">上一关</button>
       <button @click="nextLevel">下一关</button>
-      <button @click="askSolve">提示（显示答案）</button>
-      <button @click="askHint">智能提示（下一步）</button>
-      <button @click="reset">重置</button>
-      <button @click="loadDemo">加载示例</button>
+      <!-- <div style="display:flex; gap:8px; align-items:center; white-space:nowrap;">
+        <button @click="undoStep">后退</button>
+        <button @click="askSolve">提示</button>
+        <button @click="reset">重新游戏</button>
+      </div> -->
+      <!-- <button @click="loadDemo">加载示例</button> -->
     </div>
 
-    <div v-if="message" style="padding:8px; text-align:center; color:#0b7a00; font-weight:600;">
+    <canvas
+      ref="canvas"
+      style="flex: 1; background: url('../assets/bg.png'); touch-action: none"
+    ></canvas>
+    <div class="actions">
+      <button @click="undoStep">后退</button>
+      <button @click="askSolve">提示</button>
+      <button @click="reset">重新游戏</button>
+    </div>
+    <div v-if="message" class="status">
       {{ message }}
     </div>
+    
+    
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { fetchDemo, fetchLevel, solveGraph } from "../api/fastapi";
-// 新增导入
-import { hintNext } from "../api/fastapi";
-
+// import bgImg from '@/assets/bg.jpg';
 const canvas = ref(null);
 let ctx = null;
 let nodes = [];
@@ -94,72 +100,7 @@ const PATH_COLORS = [
 const UNVISITED_COLOR = "#cbd5e1";
 const NODE_STROKE_COLOR = "#333";
 const NODE_FILL_COLOR = "#fff";
-// function draw() {
-//   if (!ctx) return;
-//   ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
 
-//   ctx.lineWidth = 6;
-//   edges.forEach(([a, b]) => {
-//     const na = nodes.find((n) => n.id === a);
-//     const nb = nodes.find((n) => n.id === b);
-//     const key = edgeKey(a, b);
-//     if (!na || !nb) return;
-//     ctx.beginPath();
-//     ctx.moveTo(na.x, na.y);
-//     ctx.lineTo(nb.x, nb.y);
-//     ctx.strokeStyle = visitedEdges.find(v => v.key === key) ? "#0b84ff" : "#cbd5e1";
-//     ctx.stroke();
-//   });
-
-//   nodes.forEach((n) => {
-//     ctx.beginPath();
-//     ctx.arc(n.x, n.y, 18, 0, Math.PI * 2);
-//     ctx.fillStyle = "#fff";
-//     ctx.fill();
-//     ctx.strokeStyle = "#333";
-//     ctx.lineWidth = 2;
-//     ctx.stroke();
-//   });
-
-//   visitedEdges.forEach((visited, index) => {
-//     const seqNum = index + 1;
-//     const { key, from, to } = visited;
-//     const na = nodes.find((n) => n.id === from);
-//     const nb = nodes.find((n) => n.id === to);
-//     if (!na || !nb) return;
-//     const midX = (na.x + nb.x) / 2;
-//     const midY = (na.y + nb.y) / 2;
-//     const offsetDistance = 15;
-//     let vecX = nb.x - na.x;
-//     let vecY = nb.y - na.y;
-//     const len = Math.hypot(vecX, vecY);
-//     let normX = 0; let normY = 0;
-//     if (len > 0) { normX = -vecY / len; normY = vecX / len; }
-//     const numX = midX + normX * offsetDistance;
-//     const numY = midY + normY * offsetDistance;
-
-//     ctx.fillStyle = "#0b84ff";
-//     ctx.font = "bold 15px Arial";
-//     ctx.textAlign = "center";
-//     ctx.textBaseline = "middle";
-//     ctx.fillText(seqNum.toString(), numX, numY);
-
-//     const nodeRadius = 18;
-//     const arrowLength = 12;
-//     const arrowAngle = Math.PI / 6;
-//     const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
-//     const endX = nb.x - nodeRadius * Math.cos(angle);
-//     const endY = nb.y - nodeRadius * Math.sin(angle);
-//     ctx.beginPath();
-//     ctx.moveTo(endX, endY);
-//     ctx.lineTo( endX - arrowLength * Math.cos(angle - arrowAngle), endY - arrowLength * Math.sin(angle - arrowAngle));
-//     ctx.moveTo(endX, endY);
-//     ctx.lineTo( endX - arrowLength * Math.cos(angle + arrowAngle), endY - arrowLength * Math.sin(angle + arrowAngle));
-//     ctx.strokeStyle = "#0b84ff";
-//     ctx.lineWidth = 3;
-//     ctx.stroke();
-//   });
-// }
 function draw() {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
@@ -322,24 +263,34 @@ async function loadCurrentLevel() {
   }
 }
 
+function buildSolutionEdges(path) {
+  if (!path || path.length < 2) return [];
+  const pairs = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = path[i];
+    const to = path[i + 1];
+    pairs.push({ from, to, key: edgeKey(from, to) });
+  }
+  return pairs;
+}
+
 async function askSolve() {
   message.value = "";
 
   if (fullSolutionPath.length === 0) {
     try {
-      const payload = { nodes: nodes.map(n => n.id), edges }; // Prepare payload
-      console.log("向后端发送 /solve 请求:", payload); // Log request payload
+      const payload = { nodes: nodes.map((n) => n.id), edges };
+      console.log("向后端发送 /solve 请求:", payload);
       const res = await solveGraph(payload);
-      console.log("从后端收到 /solve 响应:", res); // Log response
+      console.log("从后端收到 /solve 响应:", res);
 
-      if (!res.ok || !res.path || res.path.length < 1) { // Path can be length 1 if only 1 node
+      if (!res.ok || !res.path || res.path.length < 1) {
         message.value = res.error || "无法求解";
         return;
       }
       fullSolutionPath = res.path;
     } catch (err) {
-      // --- V V V Added detailed error logging V V V ---
-      console.error("求解器调用失败:", err); // Log the actual error object
+      console.error("求解器调用失败:", err);
       if (err.response) {
         console.error("后端响应数据:", err.response.data);
         console.error("后端响应状态:", err.response.status);
@@ -348,40 +299,65 @@ async function askSolve() {
       } else {
         console.error("请求设置错误:", err.message);
       }
-      // --- ^ ^ ^ Logging added ^ ^ ^ ---
       message.value = "提示功能连接失败，请检查后端。";
       return;
     }
   }
 
-  visitedEdges.length = 0;
-
-  // Check if fullSolutionPath is valid before iterating
   if (!fullSolutionPath || fullSolutionPath.length < 1) {
-       message.value = "获取的路径无效";
-       return;
+    message.value = "获取的路径无效";
+    return;
   }
 
-  // Handle single-node case (no edges to draw)
-  if (fullSolutionPath.length == 1) {
-       pathEndpoint = fullSolutionPath[0];
-       hintInvalidated = true;
-       draw(); // Draw just the nodes
-       checkComplete(); // Should ideally show success if edges.length is 0
-       return;
+  const forwardEdges = buildSolutionEdges(fullSolutionPath);
+  const backwardEdges = buildSolutionEdges([...fullSolutionPath].reverse());
+
+  if (forwardEdges.length === 0) {
+    pathEndpoint = fullSolutionPath[0];
+    message.value = "该关卡无需提示。";
+    draw();
+    checkComplete();
+    return;
   }
 
+  const computeProgress = (candidate) => {
+    if (visitedEdges.length > candidate.length) {
+      return { valid: false, matched: candidate.length };
+    }
+    for (let i = 0; i < visitedEdges.length; i++) {
+      const expected = candidate[i];
+      const actual = visitedEdges[i];
+      if (!expected || actual.from !== expected.from || actual.to !== expected.to) {
+        return { valid: false, matched: i };
+      }
+    }
+    return { valid: true, matched: visitedEdges.length };
+  };
 
-  for (let i = 0; i < fullSolutionPath.length - 1; i++) {
-    const startNode = fullSolutionPath[i];
-    const endNode = fullSolutionPath[i+1];
-    const key = edgeKey(startNode, endNode);
-    visitedEdges.push({ key: key, from: startNode, to: endNode });
+  let solutionEdges = forwardEdges;
+  let progressInfo = computeProgress(forwardEdges);
+
+  if (!progressInfo.valid) {
+    const reverseInfo = computeProgress(backwardEdges);
+    if (!reverseInfo.valid) {
+      message.value = "当前路径与提示不一致，请撤销后重试。";
+      return;
+    }
+    solutionEdges = backwardEdges;
+    progressInfo = reverseInfo;
   }
 
-  pathEndpoint = fullSolutionPath[fullSolutionPath.length - 1];
-  hintInvalidated = true;
+  if (progressInfo.matched >= solutionEdges.length) {
+    message.value = "已经没有更多提示。";
+    return;
+  }
 
+  const nextEdge = solutionEdges[progressInfo.matched];
+  visitedEdges.push({ key: nextEdge.key, from: nextEdge.from, to: nextEdge.to });
+  pathEndpoint = nextEdge.to;
+  currentNode = null;
+  hintInvalidated = false;
+  message.value = `提示：从 ${nextEdge.from} 前往 ${nextEdge.to}`;
   draw();
   checkComplete();
 }
@@ -497,6 +473,29 @@ function nextLevel() {
   levelIndex.value += 1;
   loadCurrentLevel();
 }
+// Undo the last drawn step (pop last visited edge)
+function undoStep() {
+  // Nothing to undo
+  if (visitedEdges.length === 0) return;
+
+  // Remove the last visited edge
+  visitedEdges.pop();
+
+  // Update endpoint/current node according to remaining path
+  if (visitedEdges.length === 0) {
+    pathEndpoint = null;
+    currentNode = null;
+  } else {
+    const last = visitedEdges[visitedEdges.length - 1];
+    // The last visited edge's 'to' is the current endpoint
+    pathEndpoint = last.to;
+    currentNode = null;
+  }
+
+  hintInvalidated = true;
+  message.value = "";
+  draw();
+}
 function onChangeDifficulty() {
   console.log("难度更改为:", difficulty.value);
   levelIndex.value = 1;
@@ -560,6 +559,29 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.root {
+  min-height: 100vh;
+  background: url("../assets/bg.png") center/cover no-repeat fixed;
+}
+.toolbar {
+  padding: 12px 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e5e7eb;
+  /* background: url("../assets/bg.png") center/cover no-repeat fixed; */
+  /* background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.88)); */
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.toolbar span {
+  font-weight: 600;
+  color: #1f2937;
+}
 button {
   padding: 8px 12px;
   border-radius: 6px;
@@ -571,5 +593,20 @@ select {
   border-radius: 6px;
   border: 1px solid #cbd5e1;
   background: #fff;
+}
+.actions {
+  padding: 12px 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.status {
+  padding: 8px 12px;
+  text-align: center;
+  color: #0b7a00;
+  font-weight: 600;
 }
 </style>
