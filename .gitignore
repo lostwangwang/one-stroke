@@ -1,3 +1,11 @@
 node_modules/
-__pycache__
+__pycache__/
+# 忽略所有 .pyc 文件
 *.pyc
+
+# 忽略 __pycache__ 目录（Python 3 中存放 .pyc 的目录）
+__pycache__/
+
+# 可选：忽略其他编译相关文件
+*.pyo   # 优化的字节码文件
+*.pyd   # Windows 平台的编译扩展
