@@ -1,22 +1,15 @@
-# 阶段1：构建Vue项目
-FROM node:18-alpine as builder
-WORKDIR /app
-# 复制package.json和package-lock.json
-COPY package*.json ./
-# 安装依赖
-RUN npm install
-# 复制项目代码
-COPY . .
-# 构建生产环境代码（输出到dist目录）
-RUN npm run build
-
-# 阶段2：部署到Nginx
+# 阶段 1：用 Nginx 作为基础镜像（轻量且适合托管静态文件）
 FROM nginx:alpine
-# 从构建阶段复制dist目录到Nginx的静态文件目录
-COPY --from=builder /app/dist /usr/share/nginx/html
-# 复制自定义Nginx配置（可选，解决路由刷新404问题）
+
+# 将打包后的 dist 文件夹复制到 Nginx 的默认静态文件目录
+COPY dist/ /usr/share/nginx/html/
+
+# （可选）替换 Nginx 配置文件，解决 Vue 路由 history 模式刷新 404 问题
+# 在 frontend 目录下创建 nginx.conf（内容见下方），再复制到容器
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-# 暴露80端口
+
+# 暴露 80 端口（Nginx 默认端口）
 EXPOSE 80
-# 启动Nginx
+
+# 启动 Nginx（前台运行，避免容器退出）
 CMD ["nginx", "-g", "daemon off;"]

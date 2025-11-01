@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  # 前端服务
+  frontend:
+    build: ./frontend  # 指向前端 Dockerfile 目录
+    ports:
+      - "80:80"  # 服务器 80 端口映射到容器 80 端口（前端访问端口）
+    depends_on:
+      - backend  # 确保后端先启动
+    networks:
+      - app-network  # 加入自定义网络，实现与后端通信
+
+  # 后端服务
+  backend:
+    build: ./backend  # 指向后端 Dockerfile 目录
+    ports:
+      - "8000:8000"  # 服务器 8000 端口映射到容器 8000 端口（后端访问端口）
+    networks:
+      - app-network  # 加入同一网络
+
+# 自定义网络（确保前后端容器可通过服务名通信）
+networks:
+  app-network:
+    driver: bridge
