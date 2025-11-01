@@ -1,39 +1,39 @@
 <template>
   <div class="root" style="flex: 1; display: flex; flex-direction: column">
     <div class="toolbar">
-      <label style="display:flex; align-items:center; gap:6px">
+      <label style="display: flex; align-items: center; gap: 6px">
         难度
-        <select v-model="difficulty" @change="onChangeDifficulty" style="padding:6px; border-radius:6px; border:1px solid #cbd5e1">
+        <select
+          v-model="difficulty"
+          @change="onChangeDifficulty"
+          style="padding: 6px; border-radius: 6px; border: 1px solid #cbd5e1"
+        >
           <option value="easy">简单</option>
           <option value="medium">中等</option>
           <option value="hard">困难</option>
         </select>
       </label>
-      <span style="display:flex; align-items:center">关卡 {{ levelIndex }}</span>
+      <span style="display: flex; align-items: center"
+        >关卡 {{ levelIndex }}</span
+      >
       <button @click="prevLevel">上一关</button>
       <button @click="nextLevel">下一关</button>
-      <!-- <div style="display:flex; gap:8px; align-items:center; white-space:nowrap;">
-        <button @click="undoStep">后退</button>
-        <button @click="askSolve">提示</button>
-        <button @click="reset">重新游戏</button>
-      </div> -->
-      <!-- <button @click="loadDemo">加载示例</button> -->
     </div>
 
     <canvas
       ref="canvas"
       style="flex: 1; background: url('../assets/bg.png'); touch-action: none"
     ></canvas>
-    <div class="actions">
-      <button @click="undoStep">后退</button>
-      <button @click="askSolve">提示</button>
-      <button @click="reset">重新游戏</button>
+
+    <!-- 固定在底部的容器 -->
+    <div class="bottom-wrap">
+      <div v-if="message" class="status">{{ message }}</div>
+      <div class="actions">
+        <button @click="undoStep">后退</button>
+        <button @click="askSolve">提示</button>
+        <button @click="reset">重新游戏</button>
+      </div>
     </div>
-    <div v-if="message" class="status">
-      {{ message }}
-    </div>
-    
-    
   </div>
 </template>
 
@@ -76,156 +76,164 @@ function layoutNodesCircle(ids) {
   });
 }
 const PATH_COLORS = [
-    "#E91E63", // 1. 粉红 (深)
-    "#00BCD4", // 2. 青色
-    "#FF9800", // 3. 橙色
-    "#4CAF50", // 4. 绿色
-    "#673AB7", // 5. 深紫
-    "#FFEB3B", // 6. 黄色 (需谨慎，在浅色背景上可能看不清)
-    "#03A9F4", // 7. 浅蓝
-    "#795548", // 8. 棕色
-    "#607D8B", // 9. 蓝灰
-    "#F44336", // 10. 红色
-    "#009688", // 11. 蓝绿
-    "#9C27B0", // 12. 紫色
-    "#CDDC39", // 13. 浅绿
-    "#FF5722", // 14. 深橙
-    "#8BC34A", // 15. 橄榄绿
-    "#00796B", // 16. 深青
-    "#AFB42B", // 17. 泥黄
-    "#7B1FA2", // 18. 靛紫
-    "#C2185B", // 19. 玫瑰红
-    "#00579C", // 20. 深蓝
+  "#E91E63", // 1. 粉红 (深)
+  "#00BCD4", // 2. 青色
+  "#FF9800", // 3. 橙色
+  "#4CAF50", // 4. 绿色
+  "#673AB7", // 5. 深紫
+  "#FFEB3B", // 6. 黄色 (需谨慎，在浅色背景上可能看不清)
+  "#03A9F4", // 7. 浅蓝
+  "#795548", // 8. 棕色
+  "#607D8B", // 9. 蓝灰
+  "#F44336", // 10. 红色
+  "#009688", // 11. 蓝绿
+  "#9C27B0", // 12. 紫色
+  "#CDDC39", // 13. 浅绿
+  "#FF5722", // 14. 深橙
+  "#8BC34A", // 15. 橄榄绿
+  "#00796B", // 16. 深青
+  "#AFB42B", // 17. 泥黄
+  "#7B1FA2", // 18. 靛紫
+  "#C2185B", // 19. 玫瑰红
+  "#00579C", // 20. 深蓝
 ];
 const UNVISITED_COLOR = "#cbd5e1";
 const NODE_STROKE_COLOR = "#333";
 const NODE_FILL_COLOR = "#fff";
 
 function draw() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
 
-    // --- 辅助代码 (确保边线不画到圆心，并定义半径) ---
-    const nodeRadius = 18; 
+  // --- 辅助代码 (确保边线不画到圆心，并定义半径) ---
+  const nodeRadius = 18;
 
-    const getPointOnCircumference = (na, nb, radius) => {
-        const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
-        const x = na.x + radius * Math.cos(angle);
-        const y = na.y + radius * Math.sin(angle);
-        return { x, y };
-    };
-    // ----------------------------------------------------
+  const getPointOnCircumference = (na, nb, radius) => {
+    const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
+    const x = na.x + radius * Math.cos(angle);
+    const y = na.y + radius * Math.sin(angle);
+    return { x, y };
+  };
+  // ----------------------------------------------------
 
+  ctx.lineWidth = 6;
+  edges.forEach(([a, b]) => {
+    const na = nodes.find((n) => n.id === a);
+    const nb = nodes.find((n) => n.id === b);
+    const key = edgeKey(a, b);
+    if (!na || !nb) return;
+
+    // 边线不画到圆心 (保持之前修改的正确逻辑)
+    const startPoint = getPointOnCircumference(na, nb, nodeRadius);
+    const endPoint = getPointOnCircumference(nb, na, nodeRadius);
+
+    ctx.beginPath();
+    ctx.moveTo(startPoint.x, startPoint.y);
+    ctx.lineTo(endPoint.x, endPoint.y);
+
+    // 原版颜色逻辑：检查边是否被访问，如果是，使用蓝色，否则使用灰色
+    ctx.strokeStyle = visitedEdges.find((v) => v.key === key)
+      ? "#0b84ff"
+      : "#cbd5e1";
+    ctx.stroke();
+  });
+
+  nodes.forEach((n) => {
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, nodeRadius, 0, Math.PI * 2); // 使用 nodeRadius
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  visitedEdges.forEach((visited, index) => {
+    const seqNum = index + 1;
+    const { from, to } = visited;
+    const na = nodes.find((n) => n.id === from);
+    const nb = nodes.find((n) => n.id === to);
+    if (!na || !nb) return;
+
+    // --- 恢复核心逻辑：获取独特的颜色（解决 ReferenceError） ---
+    const pathColor = PATH_COLORS[index % PATH_COLORS.length];
+    // -----------------------------------------------------------
+
+    // 重新绘制已访问的边，以确保颜色覆盖（并使用不画入圆心的点）
+    const startPoint = getPointOnCircumference(na, nb, nodeRadius);
+    const endPoint = getPointOnCircumference(nb, na, nodeRadius);
     ctx.lineWidth = 6;
-    edges.forEach(([a, b]) => {
-        const na = nodes.find((n) => n.id === a);
-        const nb = nodes.find((n) => n.id === b);
-        const key = edgeKey(a, b);
-        if (!na || !nb) return;
+    ctx.beginPath();
+    ctx.moveTo(startPoint.x, startPoint.y);
+    ctx.lineTo(endPoint.x, endPoint.y);
+    ctx.strokeStyle = pathColor; // 使用独特的颜色
+    ctx.stroke();
 
-        // 边线不画到圆心 (保持之前修改的正确逻辑)
-        const startPoint = getPointOnCircumference(na, nb, nodeRadius);
-        const endPoint = getPointOnCircumference(nb, na, nodeRadius);
+    // ------------------------------------------------------
+    // --- 核心改动：计算序号位置，使其靠近箭头 (只改动这里) ---
+    // ------------------------------------------------------
+    const offsetDistance = 15; // 垂直偏移量
+    const backOffset = 30; // 沿着边的反方向回退的距离
 
-        ctx.beginPath();
-        ctx.moveTo(startPoint.x, startPoint.y);
-        ctx.lineTo(endPoint.x, endPoint.y);
-        
-        // 原版颜色逻辑：检查边是否被访问，如果是，使用蓝色，否则使用灰色
-        ctx.strokeStyle = visitedEdges.find(v => v.key === key) ? "#0b84ff" : "#cbd5e1";
-        ctx.stroke();
-    });
+    let vecX = nb.x - na.x; // 向量 from A to B
+    let vecY = nb.y - na.y;
+    const len = Math.hypot(vecX, vecY);
+    let normX = 0;
+    let normY = 0;
 
-    nodes.forEach((n) => {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, nodeRadius, 0, Math.PI * 2); // 使用 nodeRadius
-        ctx.fillStyle = "#fff";
-        ctx.fill();
-        ctx.strokeStyle = "#333";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    });
+    if (len > 0) {
+      // 归一化法线向量 (用于垂直偏移)
+      normX = -vecY / len;
+      normY = vecX / len;
 
-    visitedEdges.forEach((visited, index) => {
-        const seqNum = index + 1;
-        const { from, to } = visited;
-        const na = nodes.find((n) => n.id === from);
-        const nb = nodes.find((n) => n.id === to);
-        if (!na || !nb) return;
+      // 归一化方向向量 (用于沿着边回退)
+      vecX /= len;
+      vecY /= len;
+    }
 
-        // --- 恢复核心逻辑：获取独特的颜色（解决 ReferenceError） ---
-        const pathColor = PATH_COLORS[index % PATH_COLORS.length];
-        // -----------------------------------------------------------
-        
-        // 重新绘制已访问的边，以确保颜色覆盖（并使用不画入圆心的点）
-        const startPoint = getPointOnCircumference(na, nb, nodeRadius);
-        const endPoint = getPointOnCircumference(nb, na, nodeRadius);
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.moveTo(startPoint.x, startPoint.y);
-        ctx.lineTo(endPoint.x, endPoint.y);
-        ctx.strokeStyle = pathColor; // 使用独特的颜色
-        ctx.stroke();
+    // 1. 找到箭头终点（在 nb 节点的圆周上）
+    const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
+    const arrowX = nb.x - nodeRadius * Math.cos(angle);
+    const arrowY = nb.y - nodeRadius * Math.sin(angle);
 
-        // ------------------------------------------------------
-        // --- 核心改动：计算序号位置，使其靠近箭头 (只改动这里) ---
-        // ------------------------------------------------------
-        const offsetDistance = 15; // 垂直偏移量
-        const backOffset = 30;     // 沿着边的反方向回退的距离
+    // 2. 从箭头终点向后退 backOffset 的距离
+    const backX = arrowX - vecX * backOffset;
+    const backY = arrowY - vecY * backOffset;
 
-        let vecX = nb.x - na.x; // 向量 from A to B
-        let vecY = nb.y - na.y;
-        const len = Math.hypot(vecX, vecY);
-        let normX = 0; 
-        let normY = 0; 
-        
-        if (len > 0) { 
-            // 归一化法线向量 (用于垂直偏移)
-            normX = -vecY / len; 
-            normY = vecX / len; 
-            
-            // 归一化方向向量 (用于沿着边回退)
-            vecX /= len;
-            vecY /= len;
-        }
-        
-        // 1. 找到箭头终点（在 nb 节点的圆周上）
-        const angle = Math.atan2(nb.y - na.y, nb.x - na.x);
-        const arrowX = nb.x - nodeRadius * Math.cos(angle);
-        const arrowY = nb.y - nodeRadius * Math.sin(angle);
-        
-        // 2. 从箭头终点向后退 backOffset 的距离
-        const backX = arrowX - vecX * backOffset;
-        const backY = arrowY - vecY * backOffset;
-        
-        // 3. 在回退后的点上，进行垂直于边线的偏移
-        const numX = backX + normX * offsetDistance;
-        const numY = backY + normY * offsetDistance;
-        // ------------------------------------------------------
-        
-        ctx.fillStyle = pathColor; // 序号文本使用独特的颜色
-        ctx.font = "bold 15px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(seqNum.toString(), numX, numY);
+    // 3. 在回退后的点上，进行垂直于边线的偏移
+    const numX = backX + normX * offsetDistance;
+    const numY = backY + normY * offsetDistance;
+    // ------------------------------------------------------
 
-        // --- 恢复箭头绘制逻辑（使用 pathColor） ---
-        const arrowLength = 12;
-        const arrowAngle = Math.PI / 6;
-        // angle 变量已在上面计算
-        const endX = nb.x - nodeRadius * Math.cos(angle); // 箭头终点
-        const endY = nb.y - nodeRadius * Math.sin(angle);
-        
-        ctx.beginPath();
-        ctx.moveTo(endX, endY);
-        ctx.lineTo( endX - arrowLength * Math.cos(angle - arrowAngle), endY - arrowLength * Math.sin(angle - arrowAngle));
-        ctx.moveTo(endX, endY);
-        ctx.lineTo( endX - arrowLength * Math.cos(angle + arrowAngle), endY - arrowLength * Math.sin(angle + arrowAngle));
-        ctx.strokeStyle = pathColor; // 箭头使用独特的颜色
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        // ------------------------------------------
-    });
+    ctx.fillStyle = pathColor; // 序号文本使用独特的颜色
+    ctx.font = "bold 15px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(seqNum.toString(), numX, numY);
+
+    // --- 恢复箭头绘制逻辑（使用 pathColor） ---
+    const arrowLength = 12;
+    const arrowAngle = Math.PI / 6;
+    // angle 变量已在上面计算
+    const endX = nb.x - nodeRadius * Math.cos(angle); // 箭头终点
+    const endY = nb.y - nodeRadius * Math.sin(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - arrowLength * Math.cos(angle - arrowAngle),
+      endY - arrowLength * Math.sin(angle - arrowAngle)
+    );
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - arrowLength * Math.cos(angle + arrowAngle),
+      endY - arrowLength * Math.sin(angle + arrowAngle)
+    );
+    ctx.strokeStyle = pathColor; // 箭头使用独特的颜色
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // ------------------------------------------
+  });
 }
 function reset() {
   visitedEdges.length = 0;
@@ -327,7 +335,11 @@ async function askSolve() {
     for (let i = 0; i < visitedEdges.length; i++) {
       const expected = candidate[i];
       const actual = visitedEdges[i];
-      if (!expected || actual.from !== expected.from || actual.to !== expected.to) {
+      if (
+        !expected ||
+        actual.from !== expected.from ||
+        actual.to !== expected.to
+      ) {
         return { valid: false, matched: i };
       }
     }
@@ -353,7 +365,11 @@ async function askSolve() {
   }
 
   const nextEdge = solutionEdges[progressInfo.matched];
-  visitedEdges.push({ key: nextEdge.key, from: nextEdge.from, to: nextEdge.to });
+  visitedEdges.push({
+    key: nextEdge.key,
+    from: nextEdge.from,
+    to: nextEdge.to,
+  });
   pathEndpoint = nextEdge.to;
   currentNode = null;
   hintInvalidated = false;
@@ -362,44 +378,44 @@ async function askSolve() {
   checkComplete();
 }
 
-
 function checkComplete() {
-  if (edges && edges.length >= 0) { // Allow 0 edges for single node graphs
-      let allEdgesVisited = true;
-      const visitedCounts = visitedEdges.reduce((acc, v) => {
-          acc[v.key] = (acc[v.key] || 0) + 1;
-          return acc;
-      }, {});
+  if (edges && edges.length >= 0) {
+    // Allow 0 edges for single node graphs
+    let allEdgesVisited = true;
+    const visitedCounts = visitedEdges.reduce((acc, v) => {
+      acc[v.key] = (acc[v.key] || 0) + 1;
+      return acc;
+    }, {});
 
-      const totalCounts = edges.reduce((acc, e) => {
-           const k = edgeKey(e[0], e[1]);
-           acc[k] = (acc[k] || 0) + 1;
-           return acc;
-      }, {});
+    const totalCounts = edges.reduce((acc, e) => {
+      const k = edgeKey(e[0], e[1]);
+      acc[k] = (acc[k] || 0) + 1;
+      return acc;
+    }, {});
 
-      // Check if total edge count matches visited edge count
-      if(visitedEdges.length !== edges.length){
-           allEdgesVisited = false;
-      } else {
-           // Verify counts for each unique edge key
-           for (const key in totalCounts) {
-               if (visitedCounts[key] !== totalCounts[key]) {
-                   allEdgesVisited = false;
-                   break;
-               }
-           }
-           if (Object.keys(visitedCounts).length !== Object.keys(totalCounts).length) {
-               allEdgesVisited = false;
-           }
+    // Check if total edge count matches visited edge count
+    if (visitedEdges.length !== edges.length) {
+      allEdgesVisited = false;
+    } else {
+      // Verify counts for each unique edge key
+      for (const key in totalCounts) {
+        if (visitedCounts[key] !== totalCounts[key]) {
+          allEdgesVisited = false;
+          break;
+        }
       }
-
-
-      if (allEdgesVisited) {
-          message.value = "🎉 恭喜通关！";
+      if (
+        Object.keys(visitedCounts).length !== Object.keys(totalCounts).length
+      ) {
+        allEdgesVisited = false;
       }
+    }
+
+    if (allEdgesVisited) {
+      message.value = "🎉 恭喜通关！";
+    }
   }
 }
-
 
 function findNodeAt(x, y) {
   return nodes.find((n) => Math.hypot(n.x - x, n.y - y) < 50);
@@ -417,7 +433,7 @@ function onPointerDown(e) {
   message.value = "";
 
   if (visitedEdges.length === 0) {
-      hintInvalidated = true;
+    hintInvalidated = true;
   }
 
   if (visitedEdges.length === 0) {
@@ -441,14 +457,15 @@ function onPointerMove(e) {
 
   if (n && n.id !== currentNode) {
     const possible = edges.some(
-      ([a, b]) => (a === currentNode && b === n.id) || (a === n.id && b === currentNode)
+      ([a, b]) =>
+        (a === currentNode && b === n.id) || (a === n.id && b === currentNode)
     );
 
     if (possible) {
       const k = edgeKey(currentNode, n.id);
 
-      const drawnCount = visitedEdges.filter(v => v.key === k).length;
-      const totalCount = edges.filter(e => edgeKey(e[0], e[1]) === k).length;
+      const drawnCount = visitedEdges.filter((v) => v.key === k).length;
+      const totalCount = edges.filter((e) => edgeKey(e[0], e[1]) === k).length;
 
       if (drawnCount < totalCount) {
         visitedEdges.push({ key: k, from: currentNode, to: n.id });
@@ -517,7 +534,7 @@ onMounted(() => {
       el.height = h;
 
       if (nodes.length > 0) {
-        nodes = layoutNodesCircle(nodes.map(n => n.id));
+        nodes = layoutNodesCircle(nodes.map((n) => n.id));
         draw();
       } else {
         draw();
@@ -525,7 +542,7 @@ onMounted(() => {
     } else {
       draw();
     }
-  }
+  };
 
   window.addEventListener("resize", resizeHandler);
   resizeHandler();
@@ -563,6 +580,8 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   background: url("../assets/bg.png") center/cover no-repeat fixed;
 }
+
+/* 置顶工具条保持不变 */
 .toolbar {
   padding: 12px 16px;
   display: flex;
@@ -570,18 +589,17 @@ onBeforeUnmount(() => {
   justify-content: center;
   flex-wrap: wrap;
   border-bottom: 1px solid #e5e7eb;
-  /* background: url("../assets/bg.png") center/cover no-repeat fixed; */
-  /* background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.88)); */
   backdrop-filter: blur(6px);
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
 }
 .toolbar span {
   font-weight: 600;
   color: #1f2937;
 }
+
 button {
   padding: 8px 12px;
   border-radius: 6px;
@@ -594,17 +612,45 @@ select {
   border: 1px solid #cbd5e1;
   background: #fff;
 }
+
+/* 底部固定区域：覆盖在背景上 */
+.bottom-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  /* 渐变提高可读性，同时保留背景 */
+  background: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0)
+  );
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.08);
+  pointer-events: none; /* 不阻挡画布 */
+}
+.bottom-wrap .actions,
+.bottom-wrap .status {
+  pointer-events: auto; /* 按钮可点 */
+}
+
 .actions {
-  padding: 12px 16px;
   display: flex;
   gap: 12px;
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;
+  padding: 0; /* 已由 bottom-wrap 控制 */
 }
 
 .status {
-  padding: 8px 12px;
+  padding: 4px 8px;
   text-align: center;
   color: #0b7a00;
   font-weight: 600;
