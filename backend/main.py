@@ -1,3 +1,4 @@
+import random
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Tuple, Optional
@@ -113,21 +114,24 @@ def generate_demo():
 
 @app.get("/level")
 def get_level(difficulty: str = "easy", index: int = 1):
-    # diff = difficulty.lower()
-    # if diff not in LEVELS: diff = "easy"
-    # levels_for_difficulty = LEVELS[diff]
-    # num_levels = len(levels_for_difficulty)
-    # # Use modulo to wrap index within 1-10 range (or however many levels exist)
-    # clamped_index = (max(1, index) - 1) % num_levels
-    # return levels_for_difficulty[clamped_index]
-    # graph = None
     print(f"Generating level for difficulty: {difficulty}, index: {index}")
+    # 定义各难度的节点数范围
+    difficulty_ranges = {
+        "easy": (4, 6),      # 4-6个节点
+        "medium": (5, 7),    # 5-7个节点  
+        "hard": (6, 9)       # 6-9个节点
+    }
+    # 获取当前难度的范围，默认easy
+    min_nodes, max_nodes = difficulty_ranges.get(difficulty, (4, 6))
+    # 在范围内随机选择节点数（确保每次相同index生成相同的图）
+    random.seed(index)  # 用index作为种子，保证相同index生成相同关卡
+    num_nodes = random.randint(min_nodes, max_nodes)
     if difficulty == "easy":
-        graph = generate_eulerian_graph_data(num_nodes=5, edge_prob=0.3, type="circuit")
+        graph = generate_eulerian_graph_data(num_nodes=num_nodes, edge_prob=0.3, type="circuit")
     elif difficulty == "medium":
-        graph = generate_eulerian_graph_data(num_nodes=6, edge_prob=0.5, type="circuit")
+        graph = generate_eulerian_graph_data(num_nodes=num_nodes, edge_prob=0.5, type="circuit")
     else:  # hard
-        graph = generate_eulerian_graph_data(num_nodes=7, edge_prob=1, type="path")
+        graph = generate_eulerian_graph_data(num_nodes=num_nodes, edge_prob=0.7, type="path")
     return graph
 
 
