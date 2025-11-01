@@ -117,9 +117,9 @@ def get_level(difficulty: str = "easy", index: int = 1):
     print(f"Generating level for difficulty: {difficulty}, index: {index}")
     # 定义各难度的节点数范围
     difficulty_ranges = {
-        "easy": (4, 6),      # 4-6个节点
-        "medium": (5, 7),    # 5-7个节点  
-        "hard": (6, 9)       # 6-9个节点
+        "easy": (4, 6),     # 4-6个节点
+        "medium": (5, 7),   # 5-7个节点  
+        "hard": (6, 9)      # 6-9个节点
     }
     # 获取当前难度的范围，默认easy
     min_nodes, max_nodes = difficulty_ranges.get(difficulty, (4, 6))
