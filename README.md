@@ -1,451 +1,204 @@
 # OneStroke — Vue3 + FastAPI (mobile-ready)
 
-一个可运行的最小可行版本（MVP），包含：
+一笔画（欧拉路径/回路）小游戏。前端基于 Vue 3 + Canvas，后端基于 FastAPI，内置关卡生成、完整求解和“智能下一步提示”。支持本地开发与 Docker 一键部署。
 
 - 前端：Vue 3 + Vite + Canvas（移动触控友好）
-- 后端：FastAPI（/generate, /solve 两个接口）
+- 后端：FastAPI（/generate, /level, /solve, /hint 接口）
+- 关卡：随机生成，保证欧拉可解（回路或路径）
+- 提示：桥（bridge）规避策略，尽量避免走到死胡同
+- 可选：接入视觉大模型做文字讲解（OPENAI_API_KEY）
 
 ---
 
-## 文件结构（本项目）
+## 目录结构（带链接）
 
-```
-one-stroke/
-├─ frontend/
-│  ├─ package.json
-│  ├─ vite.config.js
-│  └─ src/
-│     ├─ main.js
-│     ├─ App.vue
-│     ├─ components/
-│     │  └─ GameCanvas.vue
-│     ├─ utils/
-│     │  └─ euler.js
-│     └─ api/
-│        └─ fastapi.js
-└─ backend/
-   ├─ requirements.txt
-   ├─ main.py
-   └─ algorithms/
-      └─ euler.py
-```
+- 根目录
+  - [.gitignore](.gitignore)
+  - [docker-compose.yml](docker-compose.yml)
+  - [README.md](README.md)
+- 后端 [backend/](backend)
+  - [Dockerfile](backend/Dockerfile)
+  - [requirements.txt](backend/requirements.txt)
+  - [main.py](backend/main.py)（FastAPI 入口）
+  - [generate_graph.py](backend/generate_graph.py)（随机生成欧拉图）
+  - 算法
+    - [algorithms/euler.py](backend/algorithms/euler.py)
+      - 核心求解：[`algorithms.euler.find_euler_path`](backend/algorithms/euler.py)
+      - 智能提示：[`algorithms.euler.find_next_step`](backend/algorithms/euler.py)
+  - 服务
+    - [services/llm_client.py](backend/services/llm_client.py)（可选 LLM 讲解：[`services.llm_client.explain_with_llm`](backend/services/llm_client.py)）
+- 前端 [frontend/](frontend)
+  - [Dockerfile](frontend/Dockerfile)
+  - [nginx.conf](frontend/nginx.conf)
+  - [index.html](frontend/index.html)
+  - [package.json](frontend/package.json)
+  - [vite.config.mjs](frontend/vite.config.mjs)
+  - 源码 [src/](frontend/src)
+    - [main.js](frontend/src/main.js)
+    - [App.vue](frontend/src/App.vue)
+    - 组件
+      - [components/GameCanvas.vue](frontend/src/components/GameCanvas.vue)（画布交互、提示、撤销、关卡切换）
+    - 工具
+      - [utils/euler.js](frontend/src/utils/euler.js)
+    - API
+      - [api/fastapi.js](frontend/src/api/fastapi.js)
+- 示例与可视化
+  - [gifs/euler.py](gifs/euler.py)（暴力搜索并生成 GIF）
+  - [gifs/gifs.py](gifs/gifs.py)（基于 networkx 动画）
 
 ---
-https://catechistic-unproficiently-billy.ngrok-fre
 
+## 快速开始
 
-## 快速开始（在本地运行）
+### 方式一：本地开发（前后端分开跑）
 
-### 后端（FastAPI）
-
-1. 进入 `backend` 目录，创建虚拟环境并安装依赖：
+1) 后端
 
 ```bash
-conda create -n one-stroke python=3.10
-conda activate one-stroke
+cd backend
+python -m venv .venv && source .venv/bin/activate  # 或 conda
 pip install -r requirements.txt
-```
-
-2. 启动服务：
-
-```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-后端运行后，`/generate` 返回一个 demo 关卡，`/solve` 接受 `{ nodes: [...], edges: [[a,b], ...] }` 并返回欧拉路径。
+2) 前端
 
----
+当前前端将 API 指向相对路径“/api”（见 [frontend/src/api/fastapi.js](frontend/src/api/fastapi.js)），适配 Docker 下的 Nginx 反代。若本地直连后端，请临时将 baseURL 调整为 http://localhost:8000，或为 Vite 添加代理。
 
-### 前端（Vue3 + Vite）
+临时直连（简单做法）：
+- 将 [frontend/src/api/fastapi.js](frontend/src/api/fastapi.js) 中
+  - `const api = axios.create({ baseURL: "/api" });`
+  - 暂改为 `const api = axios.create({ baseURL: "http://localhost:8000" });`
 
-1. 进入 `frontend` 目录，安装依赖并运行：
+启动前端：
 
 ```bash
+cd frontend
 npm install
 npm run dev
+# 打开 http://localhost:5174
 ```
 
-2. 打开手机浏览器或模拟器访问 Vite 输出的 URL（通常为 http://localhost:5173），项目已自适配移动端触控。
+注意：vite.config.mjs 已指定 dev 端口 5174。
+
+### 方式二：Docker 一键启动（推荐）
+
+```bash
+docker compose up -d --build
+# 前端: http://localhost/
+# 后端: http://localhost:8000/ (供调试)
+```
+
+说明：
+- 前端容器使用 Nginx，已在 [frontend/nginx.conf](frontend/nginx.conf) 配置 `/api -> backend:8000` 反向代理
+- 前端 axios 使用相对路径 `/api`，与反代对齐，无需修改
 
 ---
 
-## 代码清单
+## 后端 API 说明
 
-下面是各文件的最小实现，你可以直接复制到对应位置并运行。
+Base URL（本地直连）：http://localhost:8000  
+Base URL（Docker 前端转发）：/api
 
-可以加的功能：
-1. 后退，如果连错了，后退一步
-2. 限制3次使用提示
-3. AI提示
-4. 点击提示的话是否可以
-5. 连到当前点变颜色
----
+- GET /generate  
+  返回一个简单 demo 关卡（示例三角形）。
+  - 逻辑在 [backend/main.py](backend/main.py) -> `generate_demo`
 
-### backend/requirements.txt
+- GET /level?difficulty=easy|medium|hard&index=1  
+  返回指定难度、关卡编号的随机可解图。指数种子固定（index）保证同一编号可复现。
+  - 生成器：[`generate_eulerian_graph_data`](backend/generate_graph.py)
+  - 难度控制节点范围与稠密度，easy/medium 返回回路图，hard 返回路径图
 
-```
-fastapi
-uvicorn[standard]
-python-multipart
-pydantic
-```
+- POST /solve  
+  请求：`{ "nodes": number[], "edges": [ [u,v], ... ] }`  
+  响应：`{ "ok": true, "path": number[] }` 或 `{ "ok": false, "error": string }`  
+  - 求解器：[`algorithms.euler.find_euler_path`](backend/algorithms/euler.py)
+  - 算法：Hierholzer，返回顶点序列，前端据此染色
 
----
+- POST /hint  
+  请求：`{ "nodes": number[], "edges": [ [u,v]... ], "visitedEdges": string[], "pathEndpoint": number | null }`  
+  响应：`{ "ok": true, "move": [from, to] }` 或 `{ "ok": false, "message": string }`  
+  - 智能提示：[`algorithms.euler.find_next_step`](backend/algorithms/euler.py)
+  - 思路：统计“剩余边”，模拟移除每个候选边，优先选择“非桥”；若只有唯一出边则必须走；全部用尽则判断是否通关
 
-### backend/algorithms/euler.py
-
-```python
-from collections import defaultdict
-
-# 找欧拉路径（无向图）。nodes: list of ids, edges: list of (a,b)
-def find_euler_path(nodes, edges):
-    graph = defaultdict(list)
-    for a, b in edges:
-        graph[a].append(b)
-        graph[b].append(a)
-
-    # find start
-    odd = [n for n in graph if len(graph[n]) % 2 == 1]
-    if len(odd) not in (0, 2):
-        return None
-    start = odd[0] if odd else (nodes[0] if nodes else None)
-    if start is None:
-        return []
-
-    # Hierholzer
-    stack = [start]
-    path = []
-    local = {k: list(v) for k, v in graph.items()}
-    while stack:
-        v = stack[-1]
-        if local.get(v):
-            u = local[v].pop()
-            # remove reverse
-            local[u].remove(v)
-            stack.append(u)
-        else:
-            path.append(stack.pop())
-    return path[::-1]
-```
+可选：LLM 讲解  
+- 若设置环境变量 `OPENAI_API_KEY`，可通过 [`services.llm_client.explain_with_llm`](backend/services/llm_client.py) 生成自然语言说明（当前未在接口中对外暴露，预留扩展位）。
 
 ---
 
-### backend/main.py
+## 实现原理（算法与交互）
 
-```python
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List, Tuple, Optional
-from fastapi.middleware.cors import CORSMiddleware
-from algorithms.euler import find_euler_path
+- 欧拉路径/回路判定  
+  必要条件：奇度顶点个数 $|V_{odd}| \in \{0,2\}$。  
+  - 0 个奇度点 → 存在欧拉回路  
+  - 2 个奇度点 → 存在欧拉路径  
+  - 见前端校验辅助 [utils/euler.js](frontend/src/utils/euler.js) 与后端生成器
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+- 完整求解（/solve）  
+  [`algorithms.euler.find_euler_path`](backend/algorithms/euler.py) 使用 Hierholzer 算法：
+  1) 从合法起点出发（若有 2 奇点取其一，否则任意非孤立点）  
+  2) 沿未用边前进入栈，无法继续时出栈记录  
+  3) 反转得完整顶点序列（即解）
 
-class GraphInput(BaseModel):
-    nodes: List[int]
-    edges: List[Tuple[int, int]]
+- 智能提示（/hint）  
+  [`algorithms.euler.find_next_step`](backend/algorithms/euler.py) 关键点：
+  - 剩余边图重建并计数（支持重复边）
+  - 若当前端点只有唯一可走边，必须走
+  - 否则尝试“删边做 DFS 连通性对比”，优先推荐“非桥”避免割裂剩余连通性
+  - 若无边可走：校验是否所有边均被正确次数访问，是则通关，否则提示“死胡同”
 
-@app.get('/generate')
-def generate_demo():
-    # 简单三角形 demo
-    nodes = [1,2,3]
-    edges = [(1,2),(2,3),(3,1)]
-    return {"nodes": nodes, "edges": edges}
+- 关卡生成  
+  [`generate_eulerian_graph_data`](backend/generate_graph.py)：
+  1) 生成 G(n,p) 随机图，强制连通  
+  2) 成对修复奇度点为偶数（回路）  
+  3) 若需要“路径图”，随机删一条边制造 2 个奇点  
+  4) 再核验连通与奇度条件，不满足则重试
 
-@app.post('/solve')
-def solve_graph(graph: GraphInput):
-    path = find_euler_path(graph.nodes, graph.edges)
-    if path is None:
-        return {"ok": False, "error": "No Euler path"}
-    return {"ok": True, "path": path}
-```
+- 前端交互（[components/GameCanvas.vue](frontend/src/components/GameCanvas.vue)）  
+  - 触控/鼠标拖拽连边，按访问顺序染色并绘制箭头与序号
+  - 底部工具：难度切换、关卡切换、撤销一步、提示（调用 /solve）、重置
+  - 本地状态：`visitedEdges`、`pathEndpoint`、`currentNode` 等
+  - 与后端交互：`/level` 拉取关卡，`/solve` 获取完整解，后续可扩展 `/hint`
 
 ---
 
-### frontend/package.json
+## 前后端对接与网络
 
-```json
-{
-  "name": "one-stroke-frontend",
-  "version": "0.0.1",
-  "private": true,
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "axios": "^1.4.0",
-    "vue": "^3.3.4"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-vue": "^4.2.0",
-    "vite": "^5.0.0"
-  }
-}
+- 本地开发直连后端：将 [frontend/src/api/fastapi.js](frontend/src/api/fastapi.js) 的 baseURL 改为 `http://localhost:8000`
+- Docker 部署：保持 baseURL 为 `/api`，由 [frontend/nginx.conf](frontend/nginx.conf) 反向代理到后端容器 `backend:8000`
+
+---
+
+## 运行示例动画（可选）
+
+- 生成探索 GIF（需安装 `networkx`, `matplotlib`, `imageio`）：
+  - [gifs/euler.py](gifs/euler.py)：暴力搜索每一步并合成 `euler_path_brute_force.gif`
+  - [gifs/gifs.py](gifs/gifs.py)：使用 `FuncAnimation` 按欧拉路径逐帧绘制
+
+```bash
+cd gifs
+python euler.py
+python gifs.py
 ```
 
 ---
 
-### frontend/vite.config.js
+## 依赖与环境
 
-```js
-import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue";
-
-export default defineConfig({
-  plugins: [vue()],
-  server: { port: 5173 },
-});
-```
+- Python（后端）：见 [backend/requirements.txt](backend/requirements.txt)
+- Node（前端）：见 [frontend/package.json](frontend/package.json)
+- Vite Dev Server 端口：5174（见 [frontend/vite.config.mjs](frontend/vite.config.mjs)）
+- Docker：前端 80，后端 8000；compose 已建立 `app-network`，通过服务名互通
 
 ---
 
-### frontend/src/main.js
+## 常见问题
 
-```js
-import { createApp } from "vue";
-import App from "./App.vue";
-
-createApp(App).mount("#app");
-```
-
----
-
-### frontend/src/App.vue
-
-```vue
-<template>
-  <div id="app">
-    <GameCanvas />
-  </div>
-</template>
-
-<script setup>
-import GameCanvas from "./components/GameCanvas.vue";
-</script>
-
-<style>
-html,
-body,
-#app {
-  height: 100%;
-  margin: 0;
-}
-#app {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-}
-</style>
-```
+- 本地启动前端后接口 404  
+  - 使用 Docker（一键反代），或按上文修改 baseURL 为后端直连
+- 关卡不可解？  
+  - 生成器已强制满足欧拉条件与连通，如遇异常，重试或检查日志
+- LLM 提示无效  
+  - 确保配置了环境变量 `OPENAI_API_KEY`；当前未作为公开接口暴露，仅作内部演示
 
 ---
-
-### frontend/src/api/fastapi.js
-
-```js
-import axios from "axios";
-const api = axios.create({ baseURL: "http://localhost:8000" });
-export const fetchDemo = () => api.get("/generate").then((r) => r.data);
-export const solveGraph = (graph) =>
-  api.post("/solve", graph).then((r) => r.data);
-```
-
----
-
-### frontend/src/utils/euler.js
-
-```js
-// client-side simple validator and helper for edges
-export function isEulerPossible(nodes, edges) {
-  const deg = new Map();
-  edges.forEach(([a, b]) => {
-    deg.set(a, (deg.get(a) || 0) + 1);
-    deg.set(b, (deg.get(b) || 0) + 1);
-  });
-  let odd = 0;
-  for (const v of deg.values()) if (v % 2) odd++;
-  return odd === 0 || odd === 2;
-}
-```
-
----
-
-### frontend/src/components/GameCanvas.vue
-
-```vue
-<template>
-  <div style="flex:1;display:flex;flex-direction:column">
-    <canvas
-      ref="canvas"
-      style="flex:1;background:#f6f8fa;touch-action:none"
-    ></canvas>
-    <div style="padding:8px;display:flex;gap:8px;justify-content:center">
-      <button @click="loadDemo">加载示例</button>
-      <button @click="askSolve">提示（后端求解）</button>
-      <button @click="reset">重置</button>
-    </div>
-  </div>
-</template>
-
-<script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
-import { fetchDemo, solveGraph } from "../api/fastapi";
-
-const canvas = ref(null);
-let ctx = null;
-let nodes = [];
-let edges = [];
-let visitedEdges = new Set();
-let currentNode = null;
-let scale = 1;
-
-function draw() {
-  if (!ctx) return;
-  ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
-  // draw edges
-  ctx.lineWidth = 6;
-  edges.forEach(([a, b]) => {
-    const na = nodes.find((n) => n.id === a);
-    const nb = nodes.find((n) => n.id === b);
-    const key = edgeKey(a, b);
-    ctx.beginPath();
-    ctx.moveTo(na.x, na.y);
-    ctx.lineTo(nb.x, nb.y);
-    ctx.strokeStyle = visitedEdges.has(key) ? "#0b84ff" : "#cbd5e1";
-    ctx.stroke();
-  });
-  // draw nodes
-  nodes.forEach((n) => {
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, 18, 0, Math.PI * 2);
-    ctx.fillStyle = "#fff";
-    ctx.fill();
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
-}
-
-function edgeKey(a, b) {
-  return a < b ? `${a}-${b}` : `${b}-${a}`;
-}
-
-function reset() {
-  visitedEdges.clear();
-  currentNode = null;
-  draw();
-}
-
-async function loadDemo() {
-  const res = await fetchDemo();
-  nodes = res.nodes.map((id, i) => ({
-    id,
-    x: 60 + i * 120,
-    y: 120 + (i % 2) * 60,
-  }));
-  edges = res.edges;
-  reset();
-}
-
-async function askSolve() {
-  const graph = { nodes: nodes.map((n) => n.id), edges };
-  const res = await solveGraph(graph);
-  if (!res.ok) {
-    alert(res.error || "无法求解");
-    return;
-  }
-  // animate solution
-  const path = res.path;
-  // transform path -> edges visited
-  visitedEdges.clear();
-  for (let i = 0; i < path.length - 1; i++)
-    visitedEdges.add(edgeKey(path[i], path[i + 1]));
-  draw();
-}
-
-function findNodeAt(x, y) {
-  return nodes.find((n) => Math.hypot(n.x - x, n.y - y) < 24);
-}
-
-function onTouchStart(e) {
-  e.preventDefault();
-  const t = e.touches ? e.touches[0] : e;
-  const rect = canvas.value.getBoundingClientRect();
-  const x = t.clientX - rect.left;
-  const y = t.clientY - rect.top;
-  const n = findNodeAt(x, y);
-  if (n) currentNode = n.id;
-}
-
-function onTouchMove(e) {
-  if (!currentNode) return;
-  e.preventDefault();
-  const t = e.touches ? e.touches[0] : e;
-  const rect = canvas.value.getBoundingClientRect();
-  const x = t.clientX - rect.left;
-  const y = t.clientY - rect.top;
-  const n = findNodeAt(x, y);
-  if (n && n.id !== currentNode) {
-    // check edge exists
-    const possible = edges.some(
-      ([a, b]) =>
-        (a === currentNode && b === n.id) || (a === n.id && b === currentNode)
-    );
-    if (possible) {
-      visitedEdges.add(edgeKey(currentNode, n.id));
-      currentNode = n.id;
-      draw();
-    }
-  }
-}
-
-function onTouchEnd(e) {
-  currentNode = null;
-}
-
-onMounted(() => {
-  const el = canvas.value;
-  ctx = el.getContext("2d");
-  function resize() {
-    el.width = window.innerWidth;
-    el.height = window.innerHeight - 64;
-    draw();
-  }
-  window.addEventListener("resize", resize);
-  resize();
-  el.addEventListener("touchstart", onTouchStart);
-  el.addEventListener("touchmove", onTouchMove);
-  el.addEventListener("touchend", onTouchEnd);
-  // load demo by default
-  loadDemo();
-});
-
-onBeforeUnmount(() => {
-  const el = canvas.value;
-  if (el) {
-    el.removeEventListener("touchstart", onTouchStart);
-    el.removeEventListener("touchmove", onTouchMove);
-    el.removeEventListener("touchend", onTouchEnd);
-  }
-});
-</script>
-
-<style scoped>
-button {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-}
-</style>
-```
-
----
-
-## 最后说明
-
-- 这个仓库为最小可行版本（MVP），方便你快速跑通前后端联调、移动触控交互和后端求解逻辑。
-- 后续我可以帮你：增加关卡生成器、更好的一键部署脚本、用户系统、动画回放、或把前端迁移为小程序（uni-app）。
